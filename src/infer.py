@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+from env_checks import ensure_4bit_ready
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
@@ -32,6 +33,8 @@ def load_tokenizer(model_name):
 def load_model(args):
     if args.load_in_4bit and not torch.cuda.is_available():
         raise RuntimeError("--load_in_4bit 需要在支持 CUDA 的 Linux 服务器环境中使用。")
+    if args.load_in_4bit:
+        ensure_4bit_ready()
 
     dtype = torch.float32
     if torch.cuda.is_available():

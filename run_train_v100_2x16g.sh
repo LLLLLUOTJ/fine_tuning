@@ -5,6 +5,8 @@ set -euo pipefail
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export TOKENIZERS_PARALLELISM=false
 
+python src/env_checks.py --require-cuda --require-4bit
+
 torchrun --standalone --nproc_per_node=2 src/train.py \
   --model_name Qwen/Qwen2.5-7B-Instruct \
   --train_file data/train.jsonl \
@@ -20,4 +22,3 @@ torchrun --standalone --nproc_per_node=2 src/train.py \
   --max_length 1024 \
   --logging_steps 5 \
   --save_total_limit 2
-

@@ -5,15 +5,14 @@
 ## 目录结构
 
 ```text
-project/
-  data/
-    train.jsonl
-    val.jsonl
-  src/
-    train.py
-    infer.py
-  requirements.txt
-  README.md
+data/
+  train.jsonl
+  val.jsonl
+src/
+  train.py
+  infer.py
+requirements.txt
+README.md
 ```
 
 ## 数据格式
@@ -66,18 +65,63 @@ project/
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 说明：
 
 - `bitsandbytes` 主要面向 Linux CUDA 环境，macOS 本地一般不适合作为正式训练环境。
+- 如果你要跑 `--use_4bit` 或 `--load_in_4bit`，再额外安装 `bitsandbytes` 即可：
+
+```bash
+python -m pip install bitsandbytes
+```
+
 - 如果后面上 A100 / H100 / L40S 这类卡，可以优先尝试 `--bf16`。
+
+### CentOS 7 裸机适配
+
+如果你的服务器是类似 `CentOS 7 / RHEL 7` 这类老系统，建议不要一上来就直接执行：
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+更稳的做法是：
+
+1. 先单独安装 PyTorch 和 CUDA 对应包。
+2. 再安装这个仓库附带的兼容依赖集合 [`requirements.server-centos7.txt`](requirements.server-centos7.txt)。
+3. 最后运行环境检查脚本 [`src/env_checks.py`](src/env_checks.py)。
+
+一个更适合老服务器的安装顺序示例：
+
+```bash
+conda create -n fine_tuning python=3.10 -y
+conda activate fine_tuning
+conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
+python -m pip install --upgrade pip
+python -m pip install -r requirements.server-centos7.txt
+python src/env_checks.py
+```
+
+说明：
+
+- 这个兼容依赖文件默认不直接安装 `bitsandbytes` 和 `scipy`，目的是尽量避开老系统上最常见的源码编译问题。
+- 如果你看到类似 `NumPy requires GCC >= 9.3`，通常不是训练代码有问题，而是 `pip` 没拿到 wheel，开始在本机源码编译。
+- 项目里的环境检查脚本会在你启用 `4bit` 时优先检查 `glibc`、`gcc` 和 `bitsandbytes`，尽量在启动训练前就把问题说清楚。
+
+### 7B + QLoRA 的现实限制
+
+对于你现在这种 `CentOS 7 + gcc 4.8.5` 的裸机环境，要直接跑 `Qwen2.5-7B-Instruct + QLoRA`，通常最大的阻塞不是 CUDA，而是 `bitsandbytes`。
+
+- 当前裸机环境如果还是 `glibc 2.17`，很可能装不上 `bitsandbytes` 的预编译包。
+- 如果你坚持在裸机上编译 `bitsandbytes`，一般还要先补更高版本的 `gcc`、`cmake` 和 CUDA 工具链。
+- 所以更稳的路线通常是：把 `7B + QLoRA` 放到容器或更新的用户态环境里跑；裸机先把普通依赖、数据流程和脚本跑通。
 
 ## 训练示例
 
-在 `project/` 目录下运行：
+在项目根目录下运行：
 
 ```bash
 python src/train.py \
@@ -105,6 +149,7 @@ bash run_train_v100_2x16g.sh
 
 这个脚本做了几件事：
 
+- 先执行 [`src/env_checks.py`](src/env_checks.py)，确认当前环境是否真的满足 `CUDA + 4bit` 条件。
 - 使用 `torchrun` 以 2 卡 DDP 启动。
 - 默认开启 `4bit QLoRA` 和 `gradient checkpointing`。
 - 默认把 `max_length` 设为 `1024`，优先保证首轮稳定。

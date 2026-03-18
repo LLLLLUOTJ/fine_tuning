@@ -3,6 +3,7 @@ import os
 
 import torch
 from datasets import load_dataset
+from env_checks import ensure_4bit_ready
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import (
     AutoModelForCausalLM,
@@ -105,6 +106,8 @@ def load_data(train_file, val_file, tokenizer, max_length):
 def build_model(args):
     if args.use_4bit and not torch.cuda.is_available():
         raise RuntimeError("--use_4bit 需要在支持 CUDA 的 Linux 服务器环境中使用。")
+    if args.use_4bit:
+        ensure_4bit_ready()
 
     local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
     dtype = torch.float32
