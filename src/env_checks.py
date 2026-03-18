@@ -1,6 +1,7 @@
 import argparse
 import importlib.util
 import platform
+import re
 import subprocess
 import sys
 
@@ -10,18 +11,10 @@ MIN_GCC_FOR_BITSANDBYTES_SOURCE = (9, 0)
 
 
 def _parse_version(text):
-    parts = []
-    for item in text.split("."):
-        digits = []
-        for char in item:
-            if char.isdigit():
-                digits.append(char)
-            else:
-                break
-        if not digits:
-            break
-        parts.append(int("".join(digits)))
-    return tuple(parts)
+    match = re.search(r"(\d+(?:\.\d+)+)", text)
+    if not match:
+        return tuple()
+    return tuple(int(part) for part in match.group(1).split("."))
 
 
 def _format_version(version):

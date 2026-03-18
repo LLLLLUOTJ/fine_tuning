@@ -1,10 +1,11 @@
 import argparse
+import json
 import os
 
 import torch
-from datasets import load_dataset
 from env_checks import ensure_4bit_ready
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from torch.utils.data import Dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -86,21 +87,52 @@ def tokenize_batch(examples, tokenizer, max_length):
     return tokenized
 
 
+class JsonlChatDataset(Dataset):
+    def __init__(self, file_path, tokenizer, max_length):
+        self.samples = []
+        with open(file_path, "r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"{file_path}:{line_number} 不是合法 JSON。") from exc
+
+                messages = record.get("messages")
+                if not isinstance(messages, list) or not messages:
+                    raise ValueError(f"{file_path}:{line_number} 缺少非空 messages 列表。")
+
+                tokenized = tokenize_batch({"messages": [messages]}, tokenizer, max_length)
+                self.samples.append(
+                    {
+                        "input_ids": tokenized["input_ids"][0],
+                        "attention_mask": tokenized["attention_mask"][0],
+                        "labels": tokenized["labels"][0],
+                    }
+                )
+
+        if not self.samples:
+            raise ValueError(f"{file_path} 没有可用样本。")
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        return self.samples[index]
+
+
 def load_data(train_file, val_file, tokenizer, max_length):
-    data_files = {"train": train_file}
+    if not os.path.exists(train_file):
+        raise FileNotFoundError(f"训练文件不存在: {train_file}")
+
+    datasets = {
+        "train": JsonlChatDataset(train_file, tokenizer, max_length),
+    }
     if val_file and os.path.exists(val_file):
-        data_files["validation"] = val_file
-
-    raw_datasets = load_dataset("json", data_files=data_files)
-    remove_columns = raw_datasets["train"].column_names
-
-    tokenized = raw_datasets.map(
-        lambda batch: tokenize_batch(batch, tokenizer, max_length),
-        batched=True,
-        remove_columns=remove_columns,
-        desc="Tokenizing dataset",
-    )
-    return tokenized
+        datasets["validation"] = JsonlChatDataset(val_file, tokenizer, max_length)
+    return datasets
 
 
 def build_model(args):

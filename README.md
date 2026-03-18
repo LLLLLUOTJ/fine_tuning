@@ -29,6 +29,8 @@ README.md
 
 `train.py` 会调用 tokenizer 的 chat template，把 `messages` 直接拼成训练文本，所以后面你只要持续往 `train.jsonl` 和 `val.jsonl` 填数据即可。
 
+当前版本的 [`src/train.py`](/Users/lintianjian/fine_tuning/src/train.py) 已经可以直接读取本地 JSONL，不再强依赖 `datasets -> pyarrow` 这条链路；这对老服务器会友好很多。
+
 ## 建议的实操路线
 
 第一阶段先不要上来就做全参数微调，建议这样走：
@@ -107,7 +109,8 @@ python src/env_checks.py
 
 说明：
 
-- 这个兼容依赖文件默认不直接安装 `bitsandbytes` 和 `scipy`，目的是尽量避开老系统上最常见的源码编译问题。
+- 这个兼容依赖文件默认不直接安装 `bitsandbytes`、`datasets` 和 `scipy`，目的是尽量避开老系统上最常见的源码编译问题。
+- 因为训练脚本已经直接读 JSONL，所以在这条兼容路径里不需要 `pyarrow`。
 - 如果你看到类似 `NumPy requires GCC >= 9.3`，通常不是训练代码有问题，而是 `pip` 没拿到 wheel，开始在本机源码编译。
 - 项目里的环境检查脚本会在你启用 `4bit` 时优先检查 `glibc`、`gcc` 和 `bitsandbytes`，尽量在启动训练前就把问题说清楚。
 
@@ -118,6 +121,7 @@ python src/env_checks.py
 - 当前裸机环境如果还是 `glibc 2.17`，很可能装不上 `bitsandbytes` 的预编译包。
 - 如果你坚持在裸机上编译 `bitsandbytes`，一般还要先补更高版本的 `gcc`、`cmake` 和 CUDA 工具链。
 - 所以更稳的路线通常是：把 `7B + QLoRA` 放到容器或更新的用户态环境里跑；裸机先把普通依赖、数据流程和脚本跑通。
+- 如果实验室机器不方便升级系统，建议先走项目里的兼容脚本 [`run_train_v100_2x16g_centos7_compat.sh`](/Users/lintianjian/fine_tuning/run_train_v100_2x16g_centos7_compat.sh)。
 
 ## 训练示例
 
@@ -154,6 +158,17 @@ bash run_train_v100_2x16g.sh
 - 默认开启 `4bit QLoRA` 和 `gradient checkpointing`。
 - 默认把 `max_length` 设为 `1024`，优先保证首轮稳定。
 - 不启用 `--bf16`，因为 V100 首选 `fp16`。
+
+如果你当前就是 `CentOS 7 + gcc 4.8.5` 这类实验室裸机，更建议先用兼容脚本：
+
+```bash
+bash run_train_v100_2x16g_centos7_compat.sh
+```
+
+这个脚本会做两件现实一点的事情：
+
+- 只要求 `CUDA` 可用，不强行要求 `bitsandbytes`。
+- 默认切到 `Qwen/Qwen2.5-3B-Instruct + LoRA(fp16)`，尽量在不改系统的前提下先把训练流程跑通。
 
 如果你第一轮跑通且显存还有余量，可以按这个顺序逐步加：
 

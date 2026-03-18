@@ -1,7 +1,6 @@
 # Bare-metal CentOS 7 compatibility set.
 # Install PyTorch with the official CUDA packages first.
-transformers>=4.41.0
-datasets>=2.19.0
-accelerate>=0.30.0
-peft>=0.11.0
-sentencepiece>=0.2.0
+transformers==4.41.2
+accelerate==0.30.1
+peft==0.11.1
+sentencepiece==0.2.0
