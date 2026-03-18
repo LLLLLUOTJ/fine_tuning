@@ -1,0 +1,2 @@
+{"messages":[{"role":"system","content":"你是一个严谨、清晰的中文助手。"},{"role":"user","content":"请解释一下 LoRA 的作用。"},{"role":"assistant","content":"LoRA 通过只训练少量低秩增量参数来适配大模型，从而显著降低显存占用和训练成本。"}]}
+
